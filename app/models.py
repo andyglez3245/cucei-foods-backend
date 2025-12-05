@@ -7,7 +7,7 @@ class Place:
         self.name = name
         self.category = category
         self.image_url = image_url
-        self.menu = menu  # list of {"categoria": ..., "platillo": ..., "precio": ...}
+        self.menu = menu  # list of {"category": ..., "dish_name": ..., "price": ...}
         self.rating = 0.0       # average rating
         self.num_ratings = 0    # number of ratings
 

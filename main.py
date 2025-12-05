@@ -1,22 +1,29 @@
 import os
 import json
-from flask import Flask, jsonify, request
+import secrets
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
-from app.db.models import db, Place, MenuItem, Comment
+from app.db.models import db, Place, MenuItem, Comment, User
 from app.utils import update_place_rating
-from flask import send_from_directory
+from werkzeug.security import generate_password_hash, check_password_hash
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True, origins=["http://localhost:8080"])
+
 app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://postgres:{os.environ["DB_PASSWORD"]}@localhost:5432/cuceifoods'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = False   # True only if HTTPS
+
+# Secret key for sessions
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 db.init_app(app)
 
@@ -39,16 +46,73 @@ def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # -------------------
+# AUTH ENDPOINTS
+# -------------------
+
+@app.route("/api/register", methods=["POST"])
+def register():
+    session_db = get_session()
+    try:
+        name = request.form.get("name")
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        if not email or not email.endswith("@alumnos.udg.mx"):
+            return jsonify({"message": "El correo debe ser @alumnos.udg.mx"}), 400
+
+        # Email already exists?
+        if session_db.query(User).filter(User.email == email).first():
+            return jsonify({"message": "Este correo ya está registrado"}), 409
+
+        user = User(name=name, email=email)
+        user.password_hash = generate_password_hash(password)
+
+        session_db.add(user)
+        session_db.commit()
+
+        return jsonify({"message": "Usuario registrado"}), 201
+
+    finally:
+        session_db.close()
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    session_db = get_session()
+    try:
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        user = session_db.query(User).filter(User.email == email).first()
+
+        if not user or not check_password_hash(user.password_hash, password):
+            return jsonify({"message": "Credenciales inválidas"}), 401
+
+        return jsonify({
+            "message": "Logged in",
+            "user_id": user.id,
+            "user_name": user.name
+        }), 200
+
+    finally:
+        session_db.close()
+
+
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    return jsonify({"message": "Logged out"}), 200
+
+# -------------------
 # PLACES ENDPOINTS
 # -------------------
 
 @app.route("/api/places", methods=["GET"])
 def get_places():
-    session = get_session()
+    session_db = get_session()
     try:
         category = request.args.get("category")
 
-        query = session.query(Place)
+        query = session_db.query(Place)
         if category and category.lower() != "all":
             query = query.filter(Place.category == category)
 
@@ -70,14 +134,14 @@ def get_places():
 
         return jsonify(result)
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/places/<string:place_id>", methods=["GET"])
 def get_place(place_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        p = session.get(Place, place_id)
+        p = session_db.get(Place, place_id)
         if not p:
             return jsonify({"error": "Place not found"}), 404
 
@@ -92,12 +156,12 @@ def get_place(place_id):
             "num_ratings": p.num_ratings
         })
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/places", methods=["POST"])
 def create_place():
-    session = get_session()
+    session_db = get_session()
     try:
         name = request.form.get("name")
         category = request.form.get("category")
@@ -123,8 +187,8 @@ def create_place():
             image_url=image_url
         )
 
-        session.add(new_place)
-        session.commit()
+        session_db.add(new_place)
+        session_db.commit()
 
         # Menu items
         menu_json = request.form.get("menu", "[]")
@@ -136,19 +200,19 @@ def create_place():
                 dish_name=m.get("dish_name"),
                 price=m.get("price")
             )
-            session.add(menu_item)
+            session_db.add(menu_item)
 
-        session.commit()
+        session_db.commit()
         return jsonify({"id": new_place.id}), 201
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/places/<string:place_id>", methods=["PUT"])
 def update_place(place_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        p = session.get(Place, place_id)
+        p = session_db.get(Place, place_id)
         if not p:
             return jsonify({"error": "Place not found"}), 404
 
@@ -167,7 +231,7 @@ def update_place(place_id):
             p.schedule = s
 
         # Delete old menu items
-        session.query(MenuItem).filter(MenuItem.place_id == p.id).delete(synchronize_session=False)
+        session_db.query(MenuItem).filter(MenuItem.place_id == p.id).delete(synchronize_session=False)
 
         for m in data.get("menu", []):
             menu_item = MenuItem(
@@ -176,44 +240,43 @@ def update_place(place_id):
                 dish_name=m.get("dish_name"),
                 price=m.get("price")
             )
-            session.add(menu_item)
+            session_db.add(menu_item)
 
-        session.commit()
+        session_db.commit()
         return jsonify({"message": "Updated"})
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/places/<string:place_id>", methods=["DELETE"])
 def delete_place(place_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        p = session.get(Place, place_id)
+        p = session_db.get(Place, place_id)
         if not p:
             return jsonify({"error": "Place not found"}), 404
 
-        session.delete(p)
-        session.commit()
+        session_db.delete(p)
+        session_db.commit()
 
         return jsonify({"message": "Deleted"})
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/places/counts", methods=["GET"])
 def get_place_counts():
-    session = get_session()
+    session_db = get_session()
     try:
         counts = {
-            "all": session.query(Place).count(),
-            "Desayunos y Comidas": session.query(Place).filter(Place.category == "Desayunos y Comidas").count(),
-            "Bebidas y Cafetería": session.query(Place).filter(Place.category == "Bebidas y Cafetería").count(),
-            "Snacks": session.query(Place).filter(Place.category == "Snacks").count()
+            "all": session_db.query(Place).count(),
+            "Desayunos y Comidas": session_db.query(Place).filter(Place.category == "Desayunos y Comidas").count(),
+            "Bebidas y Cafetería": session_db.query(Place).filter(Place.category == "Bebidas y Cafetería").count(),
+            "Snacks": session_db.query(Place).filter(Place.category == "Snacks").count()
         }
         return jsonify(counts)
     finally:
-        session.close()
-
+        session_db.close()
 
 # -------------------
 # COMMENTS
@@ -221,98 +284,98 @@ def get_place_counts():
 
 @app.route("/api/places/<string:place_id>/comments", methods=["GET"])
 def get_comments(place_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        place = session.get(Place, place_id)
+        place = session_db.get(Place, place_id)
         if not place:
             return jsonify({"error": "Place not found"}), 404
 
-        return jsonify([{
-            "id": c.id,
-            "place_id": c.place_id,
-            "user_name": c.user_name,
-            "user_image": c.user_image,
-            "text": c.text,
-            "rating": c.rating
-        } for c in place.comments])
+        return jsonify([
+            {
+                "id": c.id,
+                "place_id": c.place_id,
+                "user_id": c.user_id,
+                "user_name": c.user.name,
+                "text": c.text,
+                "rating": c.rating
+            }
+            for c in place.comments
+        ])
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/places/<string:place_id>/comments", methods=["POST"])
 def add_comment(place_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        place = session.get(Place, place_id)
+        place = session_db.get(Place, place_id)
         if not place:
-            return jsonify({"error": "Place not found"}), 404
-
-        data = request.form
+            return jsonify({"error": "Local no encontrado"}), 404
 
         new_comment = Comment(
             place_id=place_id,
-            user_name=data.get("user_name"),
-            user_image=data.get("user_image", ""),
-            text=data.get("text"),
-            rating=int(data.get("rating", 0))
+            user_id=request.form.get("user_id"),
+            text=request.form.get("text"),
+            rating=int(request.form.get("rating", 0))
         )
 
-        session.add(new_comment)
-        session.commit()  # First commit comment
+        session_db.add(new_comment)
+        session_db.commit()
 
-        # Now update rating
-        update_place_rating(session, place)
-        session.commit()
+        update_place_rating(session_db, place)
+        session_db.commit()
 
         return jsonify({"id": new_comment.id}), 201
 
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/comments/<string:comment_id>", methods=["PUT"])
 def update_comment(comment_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        c = session.get(Comment, comment_id)
+        c = session_db.get(Comment, comment_id)
         if not c:
-            return jsonify({"error": "Comment not found"}), 404
-        data = request.json
+            return jsonify({"error": "Comentario no encontrado"}), 404
 
+        data = request.json
         c.text = data.get("text", c.text)
         c.rating = data.get("rating", c.rating)
 
-        session.commit()
-        update_place_rating(c.place)
-        session.commit()
+        session_db.commit()
+        update_place_rating(session_db, c.place)
+        session_db.commit()
 
-        return jsonify({"message": "Updated"})
+        return jsonify({"message": "Comentario editado correctamente"})
     finally:
-        session.close()
+        session_db.close()
 
 
 @app.route("/api/comments/<string:comment_id>", methods=["DELETE"])
 def delete_comment(comment_id):
-    session = get_session()
+    session_db = get_session()
     try:
-        c = session.get(Comment, comment_id)
+        c = session_db.get(Comment, comment_id)
         if not c:
             return jsonify({"error": "Comment not found"}), 404
 
         place = c.place
-        session.delete(c)
-        session.commit()
 
-        update_place_rating(place)
-        session.commit()
+        session_db.delete(c)
+        session_db.commit()
+
+        update_place_rating(session_db, place)
+        session_db.commit()
 
         return jsonify({"message": "Deleted"})
     finally:
-        session.close()
+        session_db.close()
 
 
 # -------------------
-# RUN
+# RUN SERVER
 # -------------------
 
 if __name__ == "__main__":
