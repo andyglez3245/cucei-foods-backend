@@ -14,7 +14,19 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
 app = Flask(__name__)
 CORS(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://postgres:{os.environ["DB_PASSWORD"]}@localhost:5432/cuceifoods'
+
+# --- INICIO DE LA CONFIGURACIÓN DE BASE DE DATOS HÍBRIDA ---
+
+database_url = os.environ.get('DATABASE_URL')
+
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+local_db_uri = f'postgresql://postgres:{os.environ.get("DB_PASSWORD", "contraseña_local_aqui")}@localhost:5432/cuceifoods'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or local_db_uri
+
+# --- FIN DE LA CONFIGURACIÓN ---
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
