@@ -2,6 +2,13 @@
 from app.db.models import Comment
 
 def update_place_rating(session, place):
+    """
+    Actualiza la calificación promedio de un lugar basado en los comentarios existentes.
+
+    Args:
+        session (Session): Sesión de la base de datos.
+        place (Place): Objeto Place cuya calificación será actualizada.
+    """
     # Get all ratings for that place
     ratings = (
         session.query(Comment.rating)

@@ -16,9 +16,24 @@ class User(db.Model):
     comments = db.relationship("Comment", backref="user", cascade="all, delete-orphan")
 
     def set_password(self, pw):
+        """
+        Establece el hash de la contraseña para el usuario.
+
+        Args:
+            pw (str): Contraseña en texto plano.
+        """
         self.password_hash = generate_password_hash(pw)
 
     def check_password(self, pw):
+        """
+        Verifica si la contraseña proporcionada coincide con el hash almacenado.
+
+        Args:
+            pw (str): Contraseña en texto plano.
+
+        Returns:
+            bool: True si la contraseña es correcta, False en caso contrario.
+        """
         return check_password_hash(self.password_hash, pw)
 
 
