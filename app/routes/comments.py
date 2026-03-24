@@ -75,14 +75,20 @@ def create_comments_routes(api: Api) -> Namespace:
             """
             session_db = Session(db.engine)
             try:
+                # Validar que el lugar existe
                 place = session_db.get(Place, place_id)
                 if not place:
                     return {"error": "Local no encontrado"}, 404
 
+                # Validar campos requeridos
+                text = request.form.get("text")
+                if not text:
+                    return {"error": "El texto del comentario es requerido"}, 400
+
                 new_comment = Comment(
                     place_id=place_id,
                     user_id=request.form.get("user_id"),
-                    text=request.form.get("text"),
+                    text=text,
                     rating=int(request.form.get("rating", 0))
                 )
 
