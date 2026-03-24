@@ -151,3 +151,59 @@ def test_user(app):
             self.name = uname
     
     return TestUserInfo(user_id, user_name)
+
+
+@pytest.fixture(scope="function")
+def test_place(app, test_user):
+    """Crea un lugar de prueba en la base de datos"""
+    from app.db.models import Place
+    
+    with app.app_context():
+        place = Place(
+            name="Test Restaurant",
+            schedule={"lunes": "10:00-22:00", "martes": "10:00-22:00"},
+            category="Comida Rápida",
+            image_url="https://example.com/image.jpg",
+            rating=0.0,
+            num_ratings=0
+        )
+        
+        db.session.add(place)
+        db.session.commit()
+        
+        place_id = place.id
+    
+    # Retornar objeto simple con los datos
+    class TestPlaceInfo:
+        def __init__(self, pid):
+            self.id = pid
+    
+    return TestPlaceInfo(place_id)
+
+
+@pytest.fixture(scope="function")
+def test_comment(app, test_user, test_place):
+    """Crea un comentario de prueba en la base de datos"""
+    from app.db.models import Comment
+    
+    with app.app_context():
+        comment = Comment(
+            place_id=test_place.id,
+            user_id=test_user.id,
+            text="Excelente comida",
+            rating=5
+        )
+        
+        db.session.add(comment)
+        db.session.commit()
+        
+        comment_id = comment.id
+    
+    # Retornar objeto simple con los datos
+    class TestCommentInfo:
+        def __init__(self, cid, pid, uid):
+            self.id = cid
+            self.place_id = pid
+            self.user_id = uid
+    
+    return TestCommentInfo(comment_id, test_place.id, test_user.id)
