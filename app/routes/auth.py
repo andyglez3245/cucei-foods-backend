@@ -84,6 +84,10 @@ def create_auth_routes(api: Api) -> Namespace:
                 email = request.form.get("email")
                 password = request.form.get("password")
 
+                # Email y password son requeridos
+                if not email or not password:
+                    return {"message": "Credenciales inválidas"}, 401
+
                 user = session_db.query(User).filter(User.email == email).first()
 
                 if not user or not check_password_hash(user.password_hash, password):

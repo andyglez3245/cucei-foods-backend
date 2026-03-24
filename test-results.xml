@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="0.553" timestamp="2026-03-24T15:57:56.512085-06:00" hostname="HPANDREA"><testcase classname="tests.test_auth.TestRegister" name="test_register_success" time="0.177" /></testsuite></testsuites>
