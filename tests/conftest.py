@@ -207,3 +207,81 @@ def test_comment(app, test_user, test_place):
             self.user_id = uid
     
     return TestCommentInfo(comment_id, test_place.id, test_user.id)
+
+
+@pytest.fixture(scope="function")
+def test_place_with_menu(app):
+    """Crea un lugar con items de menú"""
+    from app.db.models import Place, MenuItem
+    
+    with app.app_context():
+        place = Place(
+            name="Restaurant Menú Completo",
+            schedule={"lunes": "08:00-22:00"},
+            category="Desayunos y Comidas",
+            image_url="https://example.com/menu.jpg",
+            rating=0.0,
+            num_ratings=0
+        )
+        
+        db.session.add(place)
+        db.session.commit()
+        
+        # Agregar items de menú
+        menu_items = [
+            MenuItem(place_id=place.id, category="Desayunos", dish_name="Pancakes", price=8.50),
+            MenuItem(place_id=place.id, category="Comidas", dish_name="Tacos", price=6.00),
+            MenuItem(place_id=place.id, category="Bebidas", dish_name="Jugo", price=3.00),
+        ]
+        
+        db.session.add_all(menu_items)
+        db.session.commit()
+        
+        place_id = place.id
+    
+    # Retornar objeto simple con los datos
+    class TestPlaceMenuInfo:
+        def __init__(self, pid):
+            self.id = pid
+    
+    return TestPlaceMenuInfo(place_id)
+
+
+@pytest.fixture(scope="function")
+def test_multiple_places(app):
+    """Crea varios lugares en diferentes categorías"""
+    from app.db.models import Place
+    
+    with app.app_context():
+        places = [
+            Place(
+                name="Restaurante Comidas",
+                schedule={"lunes": "10:00-22:00"},
+                category="Desayunos y Comidas",
+                image_url="https://example.com/comidas.jpg"
+            ),
+            Place(
+                name="Cafetería Bebidas",
+                schedule={"lunes": "07:00-20:00"},
+                category="Bebidas y Cafetería",
+                image_url="https://example.com/cafe.jpg"
+            ),
+            Place(
+                name="Snack Bar",
+                schedule={"lunes": "09:00-21:00"},
+                category="Snacks",
+                image_url="https://example.com/snacks.jpg"
+            ),
+        ]
+        
+        db.session.add_all(places)
+        db.session.commit()
+        
+        place_ids = [p.id for p in places]
+    
+    # Retornar objeto simple con los IDs
+    class TestMultiplePlacesInfo:
+        def __init__(self, pids):
+            self.ids = pids
+    
+    return TestMultiplePlacesInfo(place_ids)
