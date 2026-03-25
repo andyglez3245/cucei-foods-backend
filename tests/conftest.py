@@ -285,3 +285,37 @@ def test_multiple_places(app):
             self.ids = pids
     
     return TestMultiplePlacesInfo(place_ids)
+
+
+@pytest.fixture(scope="function")
+def test_upload_file(tmp_path):
+    """Crea un archivo de prueba para uploads"""
+    # Crear un archivo PNG dummy
+    test_file = tmp_path / "test_image.png"
+    test_file.write_bytes(b'\x89PNG\r\n\x1a\n' + b'\x00' * 100)  # PNG header + data
+    return test_file
+
+
+@pytest.fixture(scope="function")
+def test_text_file(tmp_path):
+    """Crea un archivo de texto para pruebas"""
+    test_file = tmp_path / "test_file.txt"
+    test_file.write_text("Este es un archivo de prueba")
+    return test_file
+
+
+@pytest.fixture(scope="function")
+def upload_folder(tmp_path, monkeypatch):
+    """Crea un directorio de uploads temporal y configura la aplicación"""
+    upload_dir = tmp_path / "uploads"
+    upload_dir.mkdir()
+    
+    # Monkeypatch la config de uploads
+    from app.config import Config
+    original_upload_folder = Config.UPLOAD_FOLDER
+    Config.UPLOAD_FOLDER = str(upload_dir)
+    
+    yield upload_dir
+    
+    # Restaurar config original
+    Config.UPLOAD_FOLDER = original_upload_folder
