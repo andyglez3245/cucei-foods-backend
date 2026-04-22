@@ -93,6 +93,16 @@ def app():
                         FOREIGN KEY (user_id) REFERENCES users (id)
                     )
                 """)
+                conn.exec_driver_sql("""
+                    CREATE TABLE IF NOT EXISTS favorites (
+                        id VARCHAR(36) PRIMARY KEY,
+                        user_id VARCHAR(36) NOT NULL,
+                        place_id VARCHAR(36) NOT NULL,
+                        UNIQUE(user_id, place_id),
+                        FOREIGN KEY (user_id) REFERENCES users (id),
+                        FOREIGN KEY (place_id) REFERENCES places (id)
+                    )
+                """)
             else:
                 db.create_all()
         
@@ -104,7 +114,7 @@ def app():
                 db.drop_all()
             else:
                 # Para SQLite, eliminar tablas manualmente
-                for table in ['comments', 'menu_items', 'places', 'users']:
+                for table in ['favorites', 'comments', 'menu_items', 'places', 'users']:
                     try:
                         conn.exec_driver_sql(f"DROP TABLE IF EXISTS {table}")
                     except:

@@ -252,7 +252,8 @@ class TestPutComment:
         """Actualiza exitosamente un comentario"""
         update_data = {
             'text': 'Texto actualizado',
-            'rating': 4
+            'rating': 4,
+            'user_id': test_comment.user_id
         }
         
         response = client.put(
@@ -297,7 +298,7 @@ class TestPutComment:
         
         response = client.put(
             f"/api/comments/{test_comment.id}",
-            json=update_data
+            json={**update_data, 'user_id': test_comment.user_id}
         )
         
         assert response.status_code == 200
@@ -321,7 +322,7 @@ class TestPutComment:
         
         response = client.put(
             f"/api/comments/{test_comment.id}",
-            json=update_data
+            json={**update_data, 'user_id': test_comment.user_id}
         )
         
         assert response.status_code == 200
@@ -335,7 +336,7 @@ class TestPutComment:
         """Verificar que actualizar comentario recalcula el rating del lugar"""
         response = client.put(
             f"/api/comments/{test_comment.id}",
-            json={'rating': 3}
+            json={'rating': 3, 'user_id': test_comment.user_id}
         )
         
         assert response.status_code == 200
@@ -349,15 +350,15 @@ class TestPutComment:
         
         response = client.put(
             f"/api/comments/{test_comment.id}",
-            json=update_data
+            json={**update_data, 'user_id': test_comment.user_id}
         )
         
         assert response.status_code == 200
 
     def test_put_comment_empty_update(self, client, test_comment):
         """Maneja actualización vacía correctamente"""
-        update_data = {}
-        
+        update_data = {'user_id': test_comment.user_id}
+
         response = client.put(
             f"/api/comments/{test_comment.id}",
             json=update_data
@@ -372,7 +373,10 @@ class TestDeleteComment:
 
     def test_delete_comment_success(self, client, test_comment):
         """Elimina exitosamente un comentario"""
-        response = client.delete(f"/api/comments/{test_comment.id}")
+        response = client.delete(
+            f"/api/comments/{test_comment.id}",
+            json={'user_id': test_comment.user_id}
+        )
         
         assert response.status_code == 200
         assert 'message' in response.json
@@ -392,7 +396,10 @@ class TestDeleteComment:
         """Verificar que eliminar comentario recalcula el rating del lugar"""
         place_id = test_comment.place_id
         
-        response = client.delete(f"/api/comments/{test_comment.id}")
+        response = client.delete(
+            f"/api/comments/{test_comment.id}",
+            json={'user_id': test_comment.user_id}
+        )
         
         assert response.status_code == 200
         
@@ -419,7 +426,10 @@ class TestDeleteComment:
 
         # Eliminar los primeros 2
         for cid in comment_ids[:2]:
-            response = client.delete(f"/api/comments/{cid}")
+            response = client.delete(
+                f"/api/comments/{cid}",
+                json={'user_id': test_user.id}
+            )
             assert response.status_code == 200
 
         # Verificar que el tercero sigue existiendo
@@ -429,7 +439,10 @@ class TestDeleteComment:
 
     def test_delete_comment_response_message(self, client, test_comment):
         """Verifica que el mensaje de respuesta es correcto"""
-        response = client.delete(f"/api/comments/{test_comment.id}")
+        response = client.delete(
+            f"/api/comments/{test_comment.id}",
+            json={'user_id': test_comment.user_id}
+        )
         
         assert response.status_code == 200
         assert 'message' in response.json
@@ -468,7 +481,7 @@ class TestCommentsIntegration:
         }
         put_response = client.put(
             f"/api/comments/{comment_id}",
-            json=update_data
+            json={**update_data, 'user_id': test_user.id}
         )
         assert put_response.status_code == 200
 
@@ -478,7 +491,10 @@ class TestCommentsIntegration:
         assert get_response2.json[0]['rating'] == 5
 
         # 5. Eliminar comentario
-        delete_response = client.delete(f"/api/comments/{comment_id}")
+        delete_response = client.delete(
+            f"/api/comments/{comment_id}",
+            json={'user_id': test_user.id}
+        )
         assert delete_response.status_code == 200
 
         # 6. Verificar eliminación
@@ -508,7 +524,10 @@ class TestCommentsIntegration:
         assert len(get_response.json) == 3
 
         # Eliminar el del medio
-        delete_response = client.delete(f"/api/comments/{comment_ids[1]}")
+        delete_response = client.delete(
+            f"/api/comments/{comment_ids[1]}",
+            json={'user_id': test_user.id}
+        )
         assert delete_response.status_code == 200
 
         # Verificar que quedan 2
@@ -565,7 +584,7 @@ class TestCommentsIntegration:
     def test_comment_update_then_delete(self, client, test_comment):
         """Actualiza un comentario y luego lo elimina"""
         # Actualizar
-        update_data = {'text': 'Actualizado', 'rating': 4}
+        update_data = {'text': 'Actualizado', 'rating': 4, 'user_id': test_comment.user_id}
         put_response = client.put(
             f"/api/comments/{test_comment.id}",
             json=update_data
@@ -573,7 +592,10 @@ class TestCommentsIntegration:
         assert put_response.status_code == 200
 
         # Eliminar
-        delete_response = client.delete(f"/api/comments/{test_comment.id}")
+        delete_response = client.delete(
+            f"/api/comments/{test_comment.id}",
+            json={'user_id': test_comment.user_id}
+        )
         assert delete_response.status_code == 200
 
         # Verificar eliminación

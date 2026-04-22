@@ -2,7 +2,7 @@ import json
 from flask import request
 from flask_restx import Resource, Api, fields, Namespace
 from sqlalchemy.orm import Session
-from app.db.models import db, Place, MenuItem
+from app.db.models import db, Place, MenuItem, Favorite, User
 from app.routes.uploads import save_upload_file
 
 
@@ -236,6 +236,96 @@ def create_places_routes(api: Api) -> Namespace:
                 session_db.commit()
 
                 return {"message": "Deleted"}
+            finally:
+                session_db.close()
+
+
+    @api_ns.route('/places/<string:place_id>/favorite')
+    class PlaceFavorite(Resource):
+        @api_ns.marshal_with(message_model)
+        def post(self, place_id):
+            """
+            Marca un lugar como favorito para un usuario.
+            Se espera `user_id` en JSON o form.
+            """
+            session_db = Session(db.engine)
+            try:
+                p = session_db.get(Place, place_id)
+                if not p:
+                    return {"error": "Place not found"}, 404
+
+                data = request.json or {}
+                user_id = data.get('user_id') or request.form.get('user_id')
+                if not user_id:
+                    return {"error": "user_id es requerido"}, 400
+
+                user = session_db.get(User, user_id)
+                if not user:
+                    return {"error": "User not found"}, 404
+
+                # Si ya existe, no hacemos doble inserción
+                exists = session_db.query(Favorite).filter(Favorite.user_id == user_id, Favorite.place_id == place_id).first()
+                if exists:
+                    return {"message": "Already favorited"}, 200
+
+                fav = Favorite(user_id=user_id, place_id=place_id)
+                session_db.add(fav)
+                session_db.commit()
+
+                return {"message": "Favorito guardado"}, 201
+            finally:
+                session_db.close()
+
+        @api_ns.marshal_with(message_model)
+        def delete(self, place_id):
+            """
+            Elimina el favorito de un usuario para este lugar. Requiere `user_id`.
+            """
+            session_db = Session(db.engine)
+            try:
+                data = request.json or {}
+                user_id = data.get('user_id') or request.form.get('user_id')
+                if not user_id:
+                    return {"error": "user_id es requerido"}, 400
+
+                fav = session_db.query(Favorite).filter(Favorite.user_id == user_id, Favorite.place_id == place_id).first()
+                if not fav:
+                    return {"error": "Favorite not found"}, 404
+
+                session_db.delete(fav)
+                session_db.commit()
+                return {"message": "Favorito eliminado"}
+            finally:
+                session_db.close()
+
+
+    @api_ns.route('/users/<string:user_id>/favorites')
+    class UserFavorites(Resource):
+        def get(self, user_id):
+            """
+            Retorna la lista de lugares favoritos de un usuario.
+            """
+            session_db = Session(db.engine)
+            try:
+                user = session_db.get(User, user_id)
+                if not user:
+                    return {"error": "User not found"}, 404
+
+                favs = session_db.query(Favorite).filter(Favorite.user_id == user_id).all()
+                result = []
+                for f in favs:
+                    p = session_db.get(Place, f.place_id)
+                    if not p:
+                        continue
+                    result.append({
+                        "id": p.id,
+                        "name": p.name,
+                        "category": p.category,
+                        "image_url": p.image_url,
+                        "rating": p.rating
+                    })
+
+                return result
             finally:
                 session_db.close()
 

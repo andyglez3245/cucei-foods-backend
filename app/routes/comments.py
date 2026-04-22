@@ -124,9 +124,32 @@ def create_comments_routes(api: Api) -> Namespace:
                 if not c:
                     return {"error": "Comentario no encontrado"}, 404
 
-                data = request.json
-                c.text = data.get("text", c.text)
-                c.rating = data.get("rating", c.rating)
+                # Obtener user_id desde JSON o form (soporte legacy)
+                data = request.json or {}
+                user_id = data.get("user_id") or request.form.get("user_id")
+
+                if not user_id:
+                    return {"error": "user_id es requerido para editar"}, 400
+
+                # Solo el autor puede editar su comentario
+                if str(user_id) != str(c.user_id):
+                    return {"error": "No autorizado: solo el autor puede editar"}, 403
+
+                # Soportar tanto JSON como FormData: leer text y rating desde JSON, y si no existen, desde request.form
+                new_text = data.get("text") if isinstance(data, dict) else None
+                if new_text is None:
+                    new_text = request.form.get("text", c.text)
+
+                new_rating = data.get("rating") if isinstance(data, dict) else None
+                if new_rating is None:
+                    new_rating = request.form.get("rating", c.rating)
+
+                c.text = new_text if new_text is not None else c.text
+                try:
+                    c.rating = int(new_rating)
+                except (TypeError, ValueError):
+                    # Si no se puede convertir, mantener el valor anterior
+                    c.rating = c.rating
 
                 session_db.commit()
                 update_place_rating(session_db, c.place)
@@ -152,6 +175,17 @@ def create_comments_routes(api: Api) -> Namespace:
                 c = session_db.get(Comment, comment_id)
                 if not c:
                     return {"error": "Comment not found"}, 404
+
+                # Obtener user_id desde JSON o form
+                data = request.json or {}
+                user_id = data.get("user_id") or request.form.get("user_id")
+
+                if not user_id:
+                    return {"error": "user_id es requerido para eliminar"}, 400
+
+                # Solo el autor puede eliminar su comentario
+                if str(user_id) != str(c.user_id):
+                    return {"error": "No autorizado: solo el autor puede eliminar"}, 403
 
                 place = c.place
 

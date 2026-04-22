@@ -71,3 +71,21 @@ class Comment(db.Model):
 
     text = db.Column(db.Text, nullable=False)
     rating = db.Column(db.Integer, default=0)
+
+
+class Favorite(db.Model):
+    __tablename__ = 'favorites'
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    place_id = db.Column(db.String(36), db.ForeignKey('places.id'), nullable=False)
+
+    # Optional: timestamp could be added later
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'place_id', name='uq_user_place_favorite'),
+    )
+
+# add relationships on existing models
+User.favorites = db.relationship('Favorite', backref='user', cascade='all, delete-orphan')
+Place.favorites = db.relationship('Favorite', backref='place', cascade='all, delete-orphan')
